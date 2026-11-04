@@ -41,6 +41,29 @@ input[type=text]{font-size:18px;padding:8px 10px;border:2px solid var(--line);bo
 .cell{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;line-height:1.2;text-align:center;position:relative;border:2px solid transparent;font-weight:bold;color:#6b574a}
 .cell.now{border-color:var(--accent);box-shadow:0 0 0 2px #ffd0dd}
 .cell svg{width:76%;height:auto}
+.cell{box-shadow:0 3px 0 rgba(0,0,0,.09);font-size:9px;gap:1px;overflow:hidden}
+.cell .ic{font-size:19px;line-height:1}
+.cell .ci{width:26px;height:26px;object-fit:contain}
+.cell .no{position:absolute;top:1px;left:4px;font-size:8px;color:#0004;font-weight:bold}
+.cell.past{opacity:.5;filter:saturate(.6)}
+.cell.now{animation:glow 1.2s infinite;z-index:2;transform:scale(1.08)}
+.cell.now svg{animation:hop .7s infinite}
+.cell.goal{background:linear-gradient(135deg,#ffe27a,#ffb3c8)!important;color:#a24}
+@keyframes glow{50%{box-shadow:0 0 0 5px #ffd0dd,0 3px 0 rgba(0,0,0,.09)}}
+@keyframes hop{50%{transform:translateY(-3px)}}
+.dice{width:78px;height:78px;margin:0 auto;border-radius:18px;background:#fff;border:3px solid var(--line);box-shadow:0 4px 0 var(--line);display:flex;align-items:center;justify-content:center;font-size:44px;color:#ff6f91;min-height:0}
+.dice.rolling{animation:shake .12s infinite}
+@keyframes shake{25%{transform:rotate(-12deg) translateY(-4px)}75%{transform:rotate(12deg) translateY(2px)}}
+.ov{animation:fade .25s}
+.ov .card{animation:pop .35s cubic-bezier(.3,1.6,.5,1)}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{transform:scale(.8) translateY(20px);opacity:0}}
+.card{border:2px solid #fff;background:linear-gradient(#fff,#fffaf4)}
+.board{background:repeating-linear-gradient(45deg,transparent 0 10px,#0000000a 10px 11px);border-radius:12px}
+.btn{transition:filter .15s}.btn:hover{filter:brightness(1.05)}
+.spark{position:fixed;pointer-events:none;z-index:20;font-size:22px;animation:fly 1.1s ease-out forwards}
+@keyframes fly{to{transform:translate(var(--x),var(--y)) rotate(360deg);opacity:0}}
+.bar i{background-image:linear-gradient(#fff5,#0000 60%)}
 .dice{font-size:46px;font-weight:bold;text-align:center;min-height:62px}
 .ov{position:fixed;inset:0;background:#4a3b3288;display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
 .ov .card{max-width:440px;width:100%;margin:0}
@@ -545,14 +568,19 @@ async function birth(){
 }
 
 /* ---------- プレイ画面 ---------- */
+const ICON={start:'🚩',goal:'🏁',event:'⭐',chance:'🍀',trouble:'☁️',tomo:'🤝',gaku:'📖',deka:'🎒',shop:'🛍️',work:'💼',love:'💗',fam:'🏠',hosp:'🏥'};
+const BGS=['#fff0f3','#fff6df','#eaf7e4','#e6f0ff','#fff4e6','#f3ecff','#f4eadf'];
+function sparkle(){ for(let i=0;i<14;i++){ const e=document.createElement('div'); e.className='spark'; e.textContent=['✨','⭐','💗','🌈'][i%4]; e.style.left='50%'; e.style.top='45%'; e.style.setProperty('--x',(Math.random()*300-150)+'px'); e.style.setProperty('--y',(Math.random()*300-200)+'px'); document.body.appendChild(e); setTimeout(()=>e.remove(),1200);} }
 function play(a){
  const st=STAGES[S.stage], B=st.board;
+ document.documentElement.style.setProperty('--bg',BGS[S.stage]||'#fff4e6');
  const bar=STATS.map(([k,n,c])=>`<div class="g">${n} <b>${S.st[k]}</b><div class="bar"><i style="width:${S.st[k]}%;background:${c}"></i></div></div>`).join('');
  const cells=B.map((t,i)=>{
   const row=Math.floor(i/6), col=i%6, cc=row%2===0?col:5-col;
   const now=i===S.pos;
   const lab=CELL[t][0]+(SUFFIX.includes(t)?'マス':'');
-  return `<div class="cell ${now?'now':''}" style="grid-row:${row+1};grid-column:${cc+1};background:${CELL[t][1]}">${now?bonSVG(S.opts,40):lab}</div>`;
+  const ico=PORT[t]?`<img class="ci" src="${PORT[t][0]}">`:`<span class="ic">${ICON[t]||''}</span>`;
+  return `<div class="cell ${now?'now':''} ${i<S.pos?'past':''} ${t==='goal'?'goal':''}" style="grid-row:${row+1};grid-column:${cc+1};background:${CELL[t][1]}"><span class="no">${i||''}</span>${now?bonSVG(S.opts,40):ico+'<span>'+lab.replace('マス','')+'</span>'}</div>`;
  }).join('');
  const info=[];
  if(S.job) info.push('しごと: '+S.job.n);
@@ -572,15 +600,15 @@ function play(a){
  $('#home').onclick=()=>{if(!busy){save();S=newState();go('title');}};
 }
 async function tumble(d){
- const el=$('#dice');
+ const el=$('#dice'); if(el) el.classList.add('rolling');
  for(let i=0;i<7;i++){ if(el) el.textContent=1+Math.floor(Math.random()*6); await sleep(70); }
- if(el) el.textContent=d;
+ if(el){ el.classList.remove('rolling'); el.textContent=d; }
 }
 
 /* おきゅうりょう・せいかつひ */
 function payroll(months){
  const yrs=months/12, st=S.stage; let inc=0, exp=0;
- if(st===3) inc=(S.course==='work'?150:50)*M*yrs*0.85;
+ if(st===3) inc=({work:150,free:60}[S.course]||0)*M*yrs*0.85;
  else if(st===4||st===5) inc=(S.job?S.job.sal:200)*M*yrs*(st===5?1.15:1)*0.85;
  else if(st===6) inc=150*M*yrs;
  if(st>=4){
@@ -635,6 +663,7 @@ function showCard(c){
   <div class="talk">${c.svg?`<div class="center">${c.svg}${c.bonName?`<div class="small">${c.bonName}<br>${c.rankText}</div>`:''}</div>`:''}<div class="bub" style="font-size:16px">${c.text}</div></div>
   <div class="chips">${chips}</div><button class="btn">つぎへ</button></div>`;
   document.body.appendChild(ov);
+  if((c.changes||[]).some(x=>x[0]==='coll'||(x[0]==='happy'&&x[1]>=10))) sparkle();
   ov.querySelector('.btn').onclick=()=>{ov.remove();res();};
  });
 }
